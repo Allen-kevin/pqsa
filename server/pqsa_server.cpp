@@ -19,7 +19,7 @@ static uint32_t hystart_ack_delta = 2;
 #define PACKET_SIZE (MTU+54)
 #define DELTA 2
 
-#define T_THRESHOLD 100
+#define T_THRESHOLD 20
 #define RESOLUTION 1000
 /* state val */
 bool rtt_detect = true;
@@ -35,7 +35,7 @@ int ss_id;
 /* epoch count */
 int epoch_num;
 
-int M = 50;
+int M = 5;
 
 uint32_t crt_win = 1;
 uint32_t ss_crt_win = 1;
@@ -110,11 +110,8 @@ static void update_sending_rate()
 
     s_gamma = (latest_rtt > min_rtt + T_THRESHOLD)?(min_rtt*1.0/latest_rtt):s_gamma;
 
-    //printf("s_gamma = %lf\n", s_gamma);
     if (epoch_num < M) {
-    //    printf("rcv_byte = %d\n", rcv_bytes);
         est_byte = hybrid_quit_rate*(M - epoch_num + 1)/(M*DELTA) + rcv_bytes;
-    //    printf("est_byte = %d\n", est_byte);
 
         pthread_mutex_lock(&sendingCntLock);
         sending_rate = s_gamma*est_byte*RESOLUTION/(M*DELTA);
@@ -124,10 +121,11 @@ static void update_sending_rate()
         pthread_mutex_lock(&sendingCntLock);
         sending_rate = s_gamma*rcv_bytes*RESOLUTION/(M*DELTA);
         pthread_mutex_unlock(&sendingCntLock);
-    //    printf("rcv_byte = %d\n", rcv_bytes);
-    //    printf("sending_rate = %lf\n", sending_rate);
     }
+
+	pthread_mutex_lock(&restartLock);
     rcv_bytes = 0;
+	pthread_mutex_unlock(&restartLock);
 }
 
 static void hystart_update(struct hybridss *hyss, uint32_t delay)
@@ -157,8 +155,6 @@ static void hystart_update(struct hybridss *hyss, uint32_t delay)
 
     if (hyss->found & hystart_detect) {
         update_sending_rate();
-        //printf("sending_rate = %lf\n", sending_rate);
-        //printf("exit slow start\n");
         slow_start = false;
     }
 }
@@ -179,7 +175,7 @@ static void displayError(const char *on_what)
 static void restart_session()
 {
 
-    pthread_mutex_lock(&restartLock);
+    //pthread_mutex_lock(&restartLock);
 
     slow_start = true;
     pkt_seq = 0;
@@ -190,7 +186,7 @@ static void restart_session()
     s_gamma = 1.0;
 
     hystart_reset(&s_hyss);
-    pthread_mutex_unlock(&restartLock);
+    //pthread_mutex_unlock(&restartLock);
 }
 
 
@@ -342,13 +338,12 @@ void* receiver_thread(void *arg)
         pthread_mutex_lock(&restartLock);
 
         rcv_bytes += PACKET_SIZE;
+		pthread_mutex_unlock(&restartLock);
+
         gettimeofday(&received_time, NULL);
         latest_rtt = (received_time.tv_sec - pdu->seconds)*1000 + 
             (received_time.tv_usec - pdu->millis)/1000;
        
-        if (latest_rtt == 0)
-            printf("latest_rtt = %d, min_rtt = %d\n", latest_rtt, min_rtt);
-
         if (min_rtt > latest_rtt) {
             min_rtt = latest_rtt;
             s_hyss.delay_min = latest_rtt;
@@ -380,7 +375,7 @@ void* receiver_thread(void *arg)
             hystart_update(&s_hyss, latest_rtt);
         }
 
-        pthread_mutex_unlock(&restartLock);
+        //pthread_mutex_unlock(&restartLock);
     }
 }
 

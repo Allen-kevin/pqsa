@@ -38,32 +38,29 @@ void* sending_thread(void *arg)
     sendPkt *pkt;
 
     while (!terminate) {
-        gettimeofday(&timestamp, NULL);
 
         pthread_mutex_lock(&lockSendingList);
 
-        if (sendingList.size() > 0)
+        if (sendingList.size() > 0) {
             pkt = *sendingList.begin();
-        else {
-            pthread_mutex_unlock(&lockSendingList);
-            continue;
-        }
-        if (sendingList.size() > 0 && ((timestamp.tv_sec - pkt->seconds)*1000+(timestamp.tv_usec - pkt->millis)/1000) > delay) {
             z = sendto(s, pkt->pdu, sizeof(udp_packet_t), 0, (struct sockaddr *)&adr_srvr, len_inet);
             free(pkt->pdu);
 
-            if (z < 0)
+            if (z < 0) {
                 if (errno == ENOBUFS||errno == EAGAIN||errno == EWOULDBLOCK)
                     std::cout << "reached maximum OS UDP buffer size\n";
                 else
                     displayError("sendto(2)");
 
+	        	pthread_mutex_unlock(&lockSendingList);
+				continue;
+	    	}	
+
             sendingList.erase(sendingList.begin());
-            pthread_mutex_unlock(&lockSendingList);
-        } else {
-            pthread_mutex_unlock(&lockSendingList);
-            usleep(0.01);
         }
+
+        pthread_mutex_unlock(&lockSendingList);
+		usleep(0.01);
     }
 
     return NULL;
