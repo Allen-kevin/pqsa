@@ -34,7 +34,7 @@ static void displayError(const char *on_what) {
 void* sending_thread(void *arg)
 {
     int z = 0;
-    struct timeval timestamp;
+//    struct timeval timestamp;
     sendPkt *pkt;
 
     while (!terminate) {
@@ -60,7 +60,6 @@ void* sending_thread(void *arg)
         }
 
         pthread_mutex_unlock(&lockSendingList);
-		usleep(0.01);
     }
 
     return NULL;
@@ -75,7 +74,7 @@ int main(int argc, char **argv)
 
     udp_packet_t *pdu;
     sendPkt *pkt;
-    struct timeval timestamp;
+//    struct timeval timestamp;
     setbuf(stdout, NULL);
     std::ofstream clientLog;
 
@@ -135,18 +134,20 @@ int main(int argc, char **argv)
     while(!terminate) {
         pdu = (udp_packet_t *) malloc(sizeof(udp_packet_t));
         z = recvfrom(s, pdu, sizeof(udp_packet_t), 0, (struct sockaddr *)&adr, &len);
-        if ( z < 0 )
+        if ( z < 0 ) {
             displayError("recvfrom(2)");
+			continue;
+		}
 
         if (pdu->ss_id < 0) {
             clientLog.close();
             terminate = true;
         }
-        gettimeofday(&timestamp, NULL);
+        //gettimeofday(&timestamp, NULL);
         pkt = (sendPkt *)malloc(sizeof(sendPkt));
         pkt->pdu = pdu;
-        pkt->seconds = timestamp.tv_sec;
-        pkt->millis = timestamp.tv_usec;
+        //pkt->seconds = timestamp.tv_sec;
+        //pkt->millis = timestamp.tv_usec;
 
         pthread_mutex_lock(&lockSendingList);
         sendingList.push_back(pkt);
